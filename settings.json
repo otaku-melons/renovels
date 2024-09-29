@@ -1,0 +1,25 @@
+{
+	"type": "ranobe",
+	"common": {
+		"archives_directory": "",
+		"covers_directory": "",
+		"titles_directory": "",
+		"use_id_as_filename": false,
+		"sizing_images": false,
+		"legacy": false,
+		"retries": 1,
+		"delay": 1
+	},
+	"proxy": {
+		"enable": false,
+		"host": "",
+		"port": "",
+		"login": "",
+		"password": ""
+	},
+	"custom": {
+		"token": "",
+		"unstub": true,
+		"add_free_publication_date": false
+	}
+}
