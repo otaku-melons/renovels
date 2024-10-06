@@ -5,8 +5,10 @@ from Source.Core.Exceptions import TitleNotFound
 
 from dublib.WebRequestor import Protocols, WebConfig, WebLibs, WebRequestor
 from dublib.Methods.Data import RemoveRecurringSubstrings, Zerotify
+from skimage.metrics import structural_similarity
 from dublib.Polyglot import HTML
 from bs4 import BeautifulSoup
+from skimage import io
 from time import sleep
 
 import cv2
@@ -107,7 +109,7 @@ class Parser(RanobeParser):
 		Page = 1
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{SITE}/api/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
+			Response = self._Requestor.get(f"https://api.{SITE}/api/search/catalog/?page={Page}&count=30&ordering=-id&{filters}")
 			
 			if Response.status_code == 200:
 				self._PrintCollectingStatus(Page)
@@ -136,7 +138,7 @@ class Parser(RanobeParser):
 		Page = 1
 		
 		while not IsCollected:
-			Response = self._Requestor.get(f"https://{SITE}/api/titles/last-chapters/?page={Page}&count=30")
+			Response = self._Requestor.get(f"https://api.{SITE}/api/titles/last-chapters/?page={Page}&count=30")
 			
 			if Response.status_code == 200:
 				self._PrintCollectingStatus(Page)
@@ -215,7 +217,7 @@ class Parser(RanobeParser):
 			CurrentBranch = Branch(BranchID)
 
 			for BranchPage in range(0, int(ChaptersCount / 100) + 1):
-				Response = self._Requestor.get(f"https://{SITE}/api/titles/chapters/?branch_id={BranchID}&count=100&ordering=-index&page=" + str(BranchPage + 1) + "&user_data=1")
+				Response = self._Requestor.get(f"https://api.{SITE}/api/titles/chapters/?branch_id={BranchID}&count=100&ordering=-index&page=" + str(BranchPage + 1) + "&user_data=1")
 
 				if Response.status_code == 200:
 					Data = Response.json["content"]
@@ -239,7 +241,7 @@ class Parser(RanobeParser):
 						else:
 							del Buffer["free-publication-date"]
 
-						ChapterObject = Chapter(self._SystemObjects)
+						ChapterObject = Chapter(self._SystemObjects, self._Title)
 						ChapterObject.set_dict(Buffer)
 						CurrentBranch.add_chapter(ChapterObject)
 
@@ -256,7 +258,7 @@ class Parser(RanobeParser):
 
 			if CoverURI not in ["/media/None"]:
 				Buffer = {
-					"link": f"https://{SITE}{CoverURI}",
+					"link": f"https://api.{SITE}{CoverURI}",
 					"filename": CoverURI.split("/")[-1]
 				}
 
@@ -311,12 +313,24 @@ class Parser(RanobeParser):
 		"""
 
 		Paragraphs = list()
-		Response = self._Requestor.get(f"https://{SITE}/api/titles/chapters/{chapter.id}")
+		Response = self._Requestor.get(f"https://api.{SITE}/api/titles/chapters/{chapter.id}")
 
 		if Response.status_code == 200:
 			Data = Response.json["content"]["content"]
-			ParagraphsTags = BeautifulSoup(Data, "html.parser").find_all("p")
-			for Paragraph in ParagraphsTags: Paragraphs.append(str(Paragraph))
+			ParagraphsTags = BeautifulSoup(Data, "html.parser").find_all(["p", "pre"])
+			
+			for Paragraph in ParagraphsTags:
+				
+				if Paragraph.name == "pre":
+					
+					InnerHTML = HTML(str(Paragraph))
+					InnerHTML.replace_tag("pre", "blockquote")
+					Paragraph = f"<p>{InnerHTML.text}</p>"
+
+				else: 
+					Paragraph = str(Paragraph)
+
+				Paragraphs.append(Paragraph)
 
 		elif Response.status_code in [401, 423]:
 			self._SystemObjects.logger.chapter_skipped(self._Title, chapter)
@@ -415,7 +429,7 @@ class Parser(RanobeParser):
 	def parse(self):
 		"""Получает основные данные тайтла."""
 
-		Response = self._Requestor.get(f"https://{SITE}/api/titles/{self._Title.slug}/")
+		Response = self._Requestor.get(f"https://api.{SITE}/api/titles/{self._Title.slug}/")
 
 		if Response.status_code == 200:
 			Data = Response.json["content"]
