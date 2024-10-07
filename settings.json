@@ -1,14 +1,24 @@
 {
-	"type": "ranobe",
 	"common": {
 		"archives_directory": "",
 		"covers_directory": "",
 		"titles_directory": "",
+		"bad_image_stub": "",
+		"pretty": false,
 		"use_id_as_filename": false,
 		"sizing_images": false,
 		"legacy": false,
 		"retries": 1,
 		"delay": 1
+	},
+	"filters": {
+		"text_regexs": [],
+		"text_strings": [],
+		"image_md5": [],
+		"image_min_height": null,
+		"image_min_width": null,
+		"image_max_height": null,
+		"image_max_width": null
 	},
 	"proxy": {
 		"enable": false,
@@ -19,7 +29,7 @@
 	},
 	"custom": {
 		"token": "",
-		"unstub": true,
+		"unstub": false,
 		"add_free_publication_date": false
 	}
 }
