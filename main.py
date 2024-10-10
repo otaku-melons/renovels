@@ -454,4 +454,4 @@ class Parser(RanobeParser):
 			self.__GetBranches(Data)
 
 		elif Response.status_code == 404: raise TitleNotFound(self._Title)
-		else: self._SystemObjects.logger.request_error(Response, "Unable to request title data.")
+		else: self._SystemObjects.logger.request_error(Response, "Unable to request title data.", exception = True)
