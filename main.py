@@ -227,7 +227,7 @@ class Parser(RanobeParser):
 						Buffer = {
 							"id": CurrentChapter["id"],
 							"volume": str(CurrentChapter["tome"]),
-							"number": CurrentChapter["chapter"],
+							"number": CurrentChapter["chapter"].rstrip("."),
 							"name": Zerotify(CurrentChapter["name"]),
 							"is_paid": CurrentChapter["is_paid"],
 							"free-publication-date": None,
@@ -288,10 +288,12 @@ class Parser(RanobeParser):
 		"""
 
 		Description = None
-		Description = HTML(data["description"]).plain_text
-		Description = Description.replace("\r", "").replace("\xa0", " ").strip()
-		Description = RemoveRecurringSubstrings(Description, "\n")
-		Description = Zerotify(Description)
+		
+		if data["description"]:
+			Description = HTML(data["description"]).plain_text
+			Description = Description.replace("\r", "").replace("\xa0", " ").strip()
+			Description = RemoveRecurringSubstrings(Description, "\n")
+			Description = Zerotify(Description)
 
 		return Description
 
