@@ -227,7 +227,7 @@ class Parser(RanobeParser):
 						Buffer = {
 							"id": CurrentChapter["id"],
 							"volume": str(CurrentChapter["tome"]),
-							"number": CurrentChapter["chapter"].rstrip("."),
+							"number": CurrentChapter["chapter"],
 							"name": Zerotify(CurrentChapter["name"]),
 							"is_paid": CurrentChapter["is_paid"],
 							"free-publication-date": None,
@@ -410,8 +410,8 @@ class Parser(RanobeParser):
 		"""
 		Собирает список тайтлов по заданным параметрам.
 			period – количество часов до текущего момента, составляющее период получения данных;\n
-			filters – строка из URI каталога, описывающая параметры запроса;\n
-			pages – количество запрашиваемых страниц.
+			filters – строка, описывающая фильтрацию (подробнее в README.md);\n
+			pages – количество запрашиваемых страниц каталога.
 		"""
 
 		if filters and not period:
