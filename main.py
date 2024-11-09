@@ -108,7 +108,7 @@ class Parser(Progenitor):
 
 						CurrentBranch.add_chapter(ChapterObject)
 
-				else: self._SystemObjects.logger.request_error(Response, "Unable to request chapter.")
+				else: self._Portals.request_error(Response, "Unable to request chapter.")
 
 			self._Title.add_branch(CurrentBranch)		
 
@@ -138,11 +138,8 @@ class Parser(Progenitor):
 
 				Paragraphs.append(Paragraph)
 
-		elif Response.status_code in [401, 423]:
-			self._SystemObjects.logger.chapter_skipped(self._Title, chapter)
-
-		else:
-			self._SystemObjects.logger.request_error(Response, "Unable to request chapter content.")
+		elif Response.status_code in [401, 423]: self._Portals.chapter_skipped(self._Title, chapter)
+		else: self._Portals.request_error(Response, "Unable to request chapter content.")
 
 		return Paragraphs
 
@@ -194,13 +191,14 @@ class Parser(Progenitor):
 			chapter – данные главы.
 		"""
 
-		Paragraphs = self.__GetParagraphs(chapter)
-		for Paragraph in Paragraphs: chapter.add_paragraph(Paragraph)
+		if chapter.is_paid and self._Settings.custom["token"] or not chapter.is_paid:
+			Paragraphs = self.__GetParagraphs(chapter)
+			for Paragraph in Paragraphs: chapter.add_paragraph(Paragraph)
 	
 	def parse(self):
 		"""Получает основные данные тайтла."""
 
-		Response = self._Requestor.get(f"https://{SITE}/api/titles/{self._Title.slug}/")
+		Response = self._Requestor.get(f"https://api.{SITE}/api/titles/{self._Title.slug}/")
 
 		if Response.status_code == 200:
 			Data = Response.json["content"]

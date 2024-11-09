@@ -10,6 +10,9 @@
 		"retries": 1,
 		"delay": 1
 	},
+	"ranobe": {
+		"images_directory": ""
+	},
 	"filters": {
 		"text_regexs": [],
 		"text_strings": [],
