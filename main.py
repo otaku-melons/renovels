@@ -1,28 +1,12 @@
 from Parsers.remanga.main import Parser as Progenitor
 
-import Parsers.remanga.main as main 
-
-from Source.Core.Formats.Ranobe import Branch, Chapter, ChaptersTypes, Ranobe, Statuses
-from Source.Core.SystemObjects import SystemObjects
+from Source.Core.Base.Formats.Ranobe import Branch, Chapter, ChaptersTypes
 
 from dublib.Polyglot import HTML
+
+from time import sleep
+
 from bs4 import BeautifulSoup
-
-#==========================================================================================#
-# >>>>> ОПРЕДЕЛЕНИЯ <<<<< #
-#==========================================================================================#
-
-VERSION = "1.0.0"
-NAME = "renovels"
-SITE = "renovels.org"
-TYPE = Ranobe
-
-main.NAME = NAME
-main.SITE = SITE
-
-#==========================================================================================#
-# >>>>> ОСНОВНОЙ КЛАСС <<<<< #
-#==========================================================================================#
 
 class Parser(Progenitor):
 	"""Парсер."""
@@ -84,31 +68,37 @@ class Parser(Progenitor):
 			BranchID = CurrentBranchData["id"]
 			ChaptersCount = CurrentBranchData["count_chapters"]
 			CurrentBranch = Branch(BranchID)
+			PagesCount = int(ChaptersCount / 50) + 1
+			if ChaptersCount % 50: PagesCount += 1
 
-			for BranchPage in range(0, int(ChaptersCount / 100) + 1):
-				Response = self._Requestor.get(f"https://api.{SITE}/api/titles/chapters/?branch_id={BranchID}&count=100&ordering=-index&page=" + str(BranchPage + 1) + "&user_data=1")
+			for BranchPage in range(1, PagesCount):
+				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
 
 				if Response.status_code == 200:
-					Data = Response.json["content"]
-					
+					Data = Response.json["results"]
+
 					for CurrentChapter in Data:
+						CurrentChapter: dict
 						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
 						ChapterObject = Chapter(self._SystemObjects, self._Title)
 
 						ChapterObject.set_id(CurrentChapter["id"])
+						ChapterObject.set_slug(str(CurrentChapter["id"]))
 						ChapterObject.set_volume(CurrentChapter["tome"])
 						ChapterObject.set_number(CurrentChapter["chapter"])
 						ChapterObject.set_name(CurrentChapter["name"])
 						ChapterObject.set_type(self.__CheckChapterType(CurrentChapter["name"]))
 						ChapterObject.set_is_paid(CurrentChapter["is_paid"])
-						ChapterObject.set_translators(Translators)
+						ChapterObject.set_workers(Translators)
 						
 						if self._Settings.custom["add_free_publication_date"] and CurrentChapter["is_paid"]:
-							ChapterObject.add_extra_data("free-publication-date", CurrentChapter["pub_date"])
+							ChapterObject.add_extra_data("free-publication-date", CurrentChapter["delay_pub_date"])
 
 						CurrentBranch.add_chapter(ChapterObject)
 
 				else: self._Portals.request_error(Response, "Unable to request chapter.")
+
+				if BranchPage < PagesCount: sleep(self._Settings.common.delay)
 
 			self._Title.add_branch(CurrentBranch)		
 
@@ -119,28 +109,42 @@ class Parser(Progenitor):
 		"""
 
 		Paragraphs = list()
-		Response = self._Requestor.get(f"https://api.{SITE}/api/titles/chapters/{chapter.id}")
 
-		if Response.status_code == 200:
-			Data = Response.json["content"]["content"]
-			ParagraphsTags = BeautifulSoup(Data, "html.parser").find_all(["p", "pre"])
+		if chapter.is_paid and self._IsPaidChaptersLocked:
+			self._Portals.chapter_skipped(self._Title, chapter)
+			return Paragraphs
+
+		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/{chapter.id}")
+
+		if Response.status_code == 200 and "content" in Response.json.keys():
+			Data = Response.json["content"]
+			ParagraphsTags = BeautifulSoup(Data, "html.parser").find_all(["p", "pre", "blockquote"])
 			
 			for Paragraph in ParagraphsTags:
-				
-				if Paragraph.name == "pre":
-					
-					InnerHTML = HTML(str(Paragraph))
-					InnerHTML.replace_tag("pre", "blockquote")
-					Paragraph = f"<p>{InnerHTML.text}</p>"
 
-				else: 
-					Paragraph = str(Paragraph)
+				if Paragraph.has_attr("dir"): 
+					Spans = Paragraph.find_all("span")
 
-				Paragraphs.append(Paragraph)
+					for Span in Spans:
+						ParsedHTML = HTML(str(Span))
+						ParsedHTML.replace_tag("span", "p")
+						Paragraphs.append(ParsedHTML.text)
 
-		elif Response.status_code in [401, 423]: self._Portals.chapter_skipped(self._Title, chapter)
-		else: self._Portals.request_error(Response, "Unable to request chapter content.")
+					continue
 
+				ParsedHTML = HTML(str(Paragraph))
+				ParsedHTML.remove_tags(["span"])
+				ParsedHTML.replace_tag("pre", "p")
+				Paragraphs.append(ParsedHTML.text)
+
+		elif Response.status_code in [200, 401, 423]:
+			if chapter.is_paid: self._IsPaidChaptersLocked = True
+			self._Portals.chapter_skipped(self._Title, chapter)
+
+		else: 
+			print(f"https://{self._Manifest.site}/api/titles/chapters/{chapter.id}")
+			self._Portals.request_error(Response, "Unable to request chapter content.")
+		
 		return Paragraphs
 
 	def __GetOriginalLanguage(self, data: dict) -> str:
@@ -166,24 +170,6 @@ class Parser(Progenitor):
 	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
 	#==========================================================================================#
 
-	def __init__(self, system_objects: SystemObjects, title: Ranobe | None = None):
-		"""
-		Базовый парсер.
-			system_objects – коллекция системных объектов;\n
-			title – данные тайтла.
-		"""
-
-		#---> Генерация динамических свойств.
-		#==========================================================================================#
-		self._SystemObjects = system_objects
-		self._Title = title
-		
-		self._Portals = self._SystemObjects.logger.portals
-		self._Settings = self._SystemObjects.manager.parser_settings
-		self._Requestor = self._InitializeRequestor()
-
-		self._PostInitMethod()
-
 	def amend(self, branch: Branch, chapter: Chapter):
 		"""
 		Дополняет главу дайными о слайдах.
@@ -198,17 +184,21 @@ class Parser(Progenitor):
 	def parse(self):
 		"""Получает основные данные тайтла."""
 
-		Response = self._Requestor.get(f"https://api.{SITE}/api/titles/{self._Title.slug}/")
+		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.slug}/")
 
 		if Response.status_code == 200:
-			Data = Response.json["content"]
-			
-			self._Title.set_site(SITE)
+			Data = Response.json
+			LocalizedName: str = Data["main_name"]
+			EnglishName: str = Data["secondary_name"]
+			if LocalizedName.endswith("(Новелла)"): LocalizedName = LocalizedName[:-9]
+			if EnglishName.endswith("(Novel)"): EnglishName = EnglishName[:-7]
+
+			self._Title.set_site(self._Manifest.site)
 			self._Title.set_id(Data["id"])
 			self._Title.set_original_language(self.__GetOriginalLanguage(Data))
 			self._Title.set_content_language("rus")
-			self._Title.set_localized_name(Data["main_name"])
-			self._Title.set_eng_name(Data["secondary_name"])
+			self._Title.set_localized_name(LocalizedName)
+			self._Title.set_eng_name(EnglishName)
 			self._Title.set_another_names(Data["another_name"].split(" / "))
 			self._Title.set_covers(self._GetCovers(Data))
 			self._Title.set_publication_year(Data["issue_year"])
