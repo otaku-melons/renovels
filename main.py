@@ -100,6 +100,7 @@ class Parser(Progenitor):
 
 				if BranchPage < PagesCount: sleep(self._Settings.common.delay)
 
+			CurrentBranch.reverse()
 			self._Title.add_branch(CurrentBranch)		
 
 	def __GetParagraphs(self, chapter: Chapter) -> list[dict]:
