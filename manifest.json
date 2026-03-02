@@ -1,7 +1,8 @@
 {
 	"object": "parser",
 	"site": "renovels.org",
-	"content_type": "ranobe",
+	"content_types": ["ranobe"],
+	"parent": "remanga",
 	"version": "$last_git_tag",
-	"melon_required_version": "0.1.0"
+	"melon_required_version": "$from_parent"
 }
