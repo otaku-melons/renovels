@@ -1,20 +1,22 @@
 # renovels
-**renovels** – это модуль системы управления парсерами [Melon](https://github.com/otaku-melons/Melon), включающий поддержку источника: [ReNovels](https://renovels.org/).
+This is parser module for [Melon](https://github.com/otaku-melons/melon) management system that provides support of [renovels.org](https://renovels.org) source.
 
-# Дополнительные настройки
-Данный раздел описывает специфичные для этого парсера настройки.
+## Collections
+Table of available keys for `melon collect` command.
+| Key | Available | Description |
+|---|---|---|
+| **&#x2011;&#x2011;period** | ❌ | Number of hours until the current moment, which constitutes the data parsing period. |
+| **&#x2011;&#x2011;filters** | ❌ | Filtering query string. |
+| **&#x2011;&#x2011;pages** | ❌ | Number of requested catalog pages. |
+
+## Custom settings
+Parser settings can be changed by editing file `renovels.json` in configurations directory.
+```JSON
+"example_1": ""
+```
+Option 1 description.
 ___
 ```JSON
-"token": ""
+"example_2": false
 ```
-Токен аккаунта [ReNovels](https://renovels.org/).
-___
-```JSON
-"unstub": true
-```
-Включает фильтрацию заглушек обложек. Дополнительные фильтры по формату можно добавлять в эту [директорию](Filters/).
-___
-```JSON
-"add_free_publication_date": false
-```
-Указывает, нужно ли в информацию о главе добавлять дату бесплатной публикации.
+Option 2 description.

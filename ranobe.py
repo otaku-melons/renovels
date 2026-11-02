@@ -1,64 +1,141 @@
-from Parsers.remanga.manga import Parser as Progenitor
-
-from Source.Core.Base.Formats.Ranobe.Legacy import LegacyChapter as Chapter
-from Source.Core.Base.Formats.Ranobe import Branch, ChaptersTypes
-
-from dublib.Polyglot import HTML
-
-from typing import TYPE_CHECKING
-from time import sleep
+from typing import TYPE_CHECKING, override
 
 from bs4 import BeautifulSoup
 
+from melon.core.base.formats.base_format.branch import Branch
+from melon.core.base.formats.base_format.chapter import BaseChapter
+from melon.core.base.formats.ranobe.chapter import Chapter
+from melon.core.base.formats.ranobe.enums import ChapterType
+from melon.core.base.parser.presets import BaseRanobeParser
+from melon.core.html.allowed_tags import ALLOWED_TAGS
+
+from ..remanga import extensions
+from ..remanga.modules.core import ParserCore
+
 if TYPE_CHECKING:
-	from Source.Core.Base.Formats.Ranobe import Ranobe
+	from bs4 import Tag
 
-class Parser(Progenitor):
-	"""Парсер."""
+	from melon.core.base.structs.image import ImageData
+	from melon.core.html.base_elements import BaseElement
+	from melon.core.html.elements import Paragraph
+	from melon.sdk.html_parser import HyperTextParser
 
-	#==========================================================================================#
-	# >>>>> ПРИВАТНЫЕ МЕТОДЫ <<<<< #
-	#==========================================================================================#
+	from ..remanga.custom import CustomSettingsModel  # noqa: F401
+	from . import SourceOperator  # noqa: F401
 
-	def __CheckChapterType(self, name: str) -> ChaptersTypes | None:
+class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
+	"""Parser."""
+
+	@property
+	def core(self) -> ParserCore:
+		"""Content type independent parser core."""
+
+		return self.__core
+
+	@property
+	def html_parser(self) -> "HyperTextParser":
+		"""HTML elements parser."""
+
+		return self.__core.html_parser
+
+	@property
+	def is_paid_chapters_locked(self) -> bool:
+		"""Condition: is paid chapter locked."""
+
+		return self.__is_paid_chapters_locked
+
+	@property
+	def slugger(self) -> extensions.Slugger | None:
+		"""Extension: title slug updater."""
+
+		return self.__core.slugger
+
+	@override
+	def _amend(self, branch: Branch, chapter: BaseChapter) -> str | None:
 		"""
-		Определяет при возможности тип главы.
-			name – название главы.
+		Amend chapter content.
+
+		Args:
+			branch (Branch): Branch.
+			chapter (Any): Chapter
+
+		Returns:
+			str | None: Optional additional message about amending result.
 		"""
 
-		if not name: return None
-		name = name.lower()
+		if not isinstance(chapter, Chapter):
+			raise TypeError("Incorrect chapter type given to amending.")
+
+		elements = self.__get_chapter_elements(chapter)
+		chapter.set_elements(elements)
+
+	@override
+	def _parse(self):
+		"""Parse title data witchout chapters content."""
+
+		self.core.parse_main_data()
+
+	@override
+	def _post_init(self):
+		"""Execute after instance initialization."""
+
+		self.__is_paid_chapters_locked: bool = False
+		self.__core: ParserCore = ParserCore(self, Chapter)
+
+	def __get_chapter_type(self, header: str) -> ChapterType | None:
+		"""
+		Get chapter type.
+
+		Args:
+			header (str): Chapter header.
+
+		Returns:
+			ChapterType | None: Chapter type or `None` if unable determine.
+		"""
+
+		if not header:
+			return
+
+		header = header.lower()
 
 		#---> afterword
 		#==========================================================================================#
-		if "послесловие" in name: return ChaptersTypes.afterword
+		if "послесловие" in header:
+			return ChapterType.afterword
 
 		#---> art
 		#==========================================================================================#
-		if name.startswith("начальные") and "иллюстрации" in name: return ChaptersTypes.art
+		if header.startswith("начальные") and "иллюстрации" in header:
+			return ChapterType.art
 
 		#---> epilogue
 		#==========================================================================================#
-		if "эпилог" in name: return ChaptersTypes.epilogue
+		if "эпилог" in header:
+			return ChapterType.epilogue
 
 		#---> extra
 		#==========================================================================================#
-		if name.startswith("дополнительн") and "истори" in name: return ChaptersTypes.extra
-		if name.startswith("бонус") and "истори" in name: return ChaptersTypes.extra
-		if name.startswith("экстра"): return ChaptersTypes.extra
+		if any((
+			header.startswith("дополнительн") and "истори" in header,
+			header.startswith("бонус") and "истори",
+			header.startswith("экстра"),
+		)):
+			return ChapterType.extra
 
 		#---> glossary
 		#==========================================================================================#
-		if name.startswith("глоссарий"): return ChaptersTypes.glossary
+		if header.startswith("глоссарий"):
+			return ChapterType.glossary
 
 		#---> prologue
 		#==========================================================================================#
-		if "пролог" in name: return ChaptersTypes.prologue
+		if "пролог" in header:
+			return ChapterType.prologue
 
 		#---> trash
 		#==========================================================================================#
-		if name.startswith("реквизиты") and "переводчик" in name: return ChaptersTypes.trash
-		if name.startswith("примечани") and "переводчик" in name: return ChaptersTypes.trash
+		if header.startswith("реквизиты") and "переводчик" in header: return ChapterType.trash
+		if header.startswith("примечани") and "переводчик" in header: return ChapterType.trash
 
 		#---> chapter
 		#==========================================================================================#
@@ -66,157 +143,81 @@ class Parser(Progenitor):
 
 		return None
 
-	def __GetBranches(self, data: str):
-		"""Получает ветви тайтла."""
-
-		for CurrentBranchData in data["branches"]:
-			BranchID = CurrentBranchData["id"]
-			ChaptersCount = CurrentBranchData["count_chapters"]
-			CurrentBranch = Branch(BranchID)
-			PagesCount = int(ChaptersCount / 50) + 1
-			if ChaptersCount % 50: PagesCount += 1
-
-			for BranchPage in range(1, PagesCount):
-				Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/?branch_id={BranchID}&ordering=-index&page={BranchPage}")
-
-				if Response.status_code == 200:
-					Data = Response.json["results"]
-
-					for CurrentChapter in Data:
-						CurrentChapter: dict
-						Translators = [sub["name"] for sub in CurrentChapter["publishers"]]
-						ChapterObject = Chapter(self._SystemObjects, self._Title)
-
-						ChapterObject.set_id(CurrentChapter["id"])
-						ChapterObject.set_slug(str(CurrentChapter["id"]))
-						ChapterObject.set_volume(CurrentChapter["tome"])
-						ChapterObject.set_number(CurrentChapter["chapter"])
-						ChapterObject.set_name(CurrentChapter["name"])
-						ChapterObject.set_type(self.__CheckChapterType(CurrentChapter["name"]))
-						ChapterObject.set_is_paid(CurrentChapter["is_paid"])
-						ChapterObject.set_workers(Translators)
-						
-						if self._Settings.custom["add_free_publication_date"] and CurrentChapter["is_paid"]:
-							ChapterObject.add_extra_data("free-publication-date", CurrentChapter["delay_pub_date"])
-
-						CurrentBranch.add_chapter(ChapterObject)
-
-				else: self._Portals.request_error(Response, "Unable to request chapter.")
-
-				if BranchPage < PagesCount: sleep(self._Settings.common.delay)
-
-			CurrentBranch.reverse()
-			self._Title.add_branch(CurrentBranch)		
-
-	def __GetParagraphs(self, chapter: Chapter) -> list[dict]:
+	def __get_chapter_elements(self, chapter: Chapter) -> tuple["BaseElement | ImageData", ...]:
 		"""
-		Получает данные о слайдах главы.
-			chapter – данные главы.
+		Get chapter elements.
+
+		Returns:
+			tuple[BaseElement, ...]: Chapter elements.
 		"""
 
-		Paragraphs = list()
+		elements: list[BaseElement | ImageData] = []
 
-		if chapter.is_paid and self._IsPaidChaptersLocked:
-			self._Portals.chapter_skipped(chapter)
-			return Paragraphs
+		if chapter.is_paid and self.is_paid_chapters_locked:
+			self.portals.chapter_skipped(chapter)
+			return ()
 
-		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/chapters/{chapter.id}")
+		response = self.requestor.get(f"https://{self.manifest.domain}/api/v2/titles/chapters/{chapter.id}/")
+		data: dict | None = response.json
 
-		if Response.status_code == 200 and "content" in Response.json.keys():
-			Data = Response.json["content"]
-			ParagraphsTags = BeautifulSoup(Data, "html.parser").find_all(["p", "pre", "blockquote"])
-			
-			for Paragraph in ParagraphsTags:
+		if not response.ok or not data:
+			self.portals.request_error(response, "Unable to request chapter content.")
 
-				if Paragraph.has_attr("dir"): 
-					Spans = Paragraph.find_all("span")
+		if "content" not in data:
 
-					for Span in Spans:
-						ParsedHTML = HTML(str(Span))
-						ParsedHTML.replace_tag("span", "p")
-						Paragraphs.append(ParsedHTML.text)
+			if chapter.is_paid:
+				self._is_paid_chapters_locked = True
 
-					continue
+			self.portals.chapter_skipped(chapter)
+			return ()
 
-				ParsedHTML = HTML(str(Paragraph))
-				ParsedHTML.remove_tags(["span"])
-				ParsedHTML.replace_tag("pre", "p")
-				Paragraphs.append(ParsedHTML.text)
+		content: str = data["content"]
+		soup = BeautifulSoup(content, "html.parser")
 
-		elif Response.status_code in [200, 401, 423]:
-			if chapter.is_paid: self._IsPaidChaptersLocked = True
-			self._Portals.chapter_skipped(chapter)
+		for section in soup.find_all(ALLOWED_TAGS.names + ("table",)):
 
-		else: 
-			print(f"https://{self._Manifest.site}/api/titles/chapters/{chapter.id}")
-			self._Portals.request_error(Response, "Unable to request chapter content.")
-		
-		return Paragraphs
+			match section.name:
 
-	def __GetOriginalLanguage(self, data: dict) -> str:
-		"""
-		Получает оригинальный язык тайтла.
-			data – словарь данных тайтла.
-		"""
+				case "h1" | "h2" | "h3" | "h4" | "h5" | "h6":
+					header = self.html_parser.parse_header(section)
+					if header: elements.append(header)
 
-		OriginalLanguage = None
-		TypesDeterminations = {
-			"Авторское": "rus",
-			"Япония": "jpn",
-			"Корея": "kor",
-			"Китай": "zho",
-			"Запад": "eng"
-		}
-		SiteType = data["type"]["name"]
-		if SiteType in TypesDeterminations.keys(): OriginalLanguage = TypesDeterminations[SiteType]
+				case "p" | "pre":
+					elements.extend(self.html_parser.parse_paragraphs(section))
 
-		return OriginalLanguage
+				case "img":
+					image = self.html_parser.parse_image(section)
+					if image: elements.append(image)
 
-	#==========================================================================================#
-	# >>>>> ПУБЛИЧНЫЕ МЕТОДЫ <<<<< #
-	#==========================================================================================#
+				case "blockquote":
+					blockquote = self.html_parser.parse_blockquote(section, paragraphs_tags = ("p", "pre"))
+					if blockquote: elements.append(blockquote)
 
-	def amend(self, branch: Branch, chapter: Chapter):
-		"""
-		Дополняет главу дайными о слайдах.
-			branch – данные ветви;\n
-			chapter – данные главы.
-		"""
+				case "table":
+					elements.extend(self.__parse_table(section))
 
-		if chapter.is_paid and self._Settings.custom["token"] or not chapter.is_paid:
-			Paragraphs = self.__GetParagraphs(chapter)
-			for Paragraph in Paragraphs: chapter.add_paragraph(Paragraph)
-	
-	def parse(self):
-		"""Получает основные данные тайтла."""
-		
-		self._Title: "Ranobe"
-		Response = self._Requestor.get(f"https://{self._Manifest.site}/api/v2/titles/{self._Title.slug}/")
+		return tuple(elements)
 
-		if Response.status_code == 200:
-			Data = Response.json
-			LocalizedName: str = Data["main_name"]
-			EnglishName: str = Data["secondary_name"]
-			if LocalizedName.endswith("(Новелла)"): LocalizedName = LocalizedName[:-9]
-			if EnglishName.endswith("(Novel)"): EnglishName = EnglishName[:-7]
+	def __parse_table(self, tag: "Tag") -> tuple["Paragraph", ...]:
 
-			self._Title.set_site(self._Manifest.site)
-			self._Title.set_id(Data["id"])
-			self._Title.set_original_language(self.__GetOriginalLanguage(Data))
-			self._Title.set_content_language("rus")
-			self._Title.set_localized_name(LocalizedName)
-			self._Title.set_eng_name(EnglishName)
-			self._Title.set_another_names(Data["another_name"].split(" / "))
-			self._GetCovers(Data)
-			self._Title.set_publication_year(Data["issue_year"])
-			self._Title.set_description(self._GetDescription(Data))
-			self._Title.set_age_limit(self._GetAgeLimit(Data))
-			self._Title.set_status(self._GetStatus(Data))
-			self._Title.set_is_licensed(Data["is_licensed"])
-			self._Title.set_genres(self._GetGenres(Data))
-			self._Title.set_tags(self._GetTags(Data))
-			
-			self.__GetBranches(Data)
+		if tag.name != "table":
+			raise ValueError("Table can be parsed only from same tag.")
 
-		elif Response.status_code == 404: self._Portals.title_not_found(self._Title)
-		else: self._Portals.request_error(Response, "Unable to request title data.")
+		tbody: Tag | None = tag.find("tbody")
+
+		if not tbody:
+			return ()
+
+		paragraphs: list[Paragraph] = []
+
+		for row in tbody.find_all("tr", recursive = False):
+			text: str = row.get_text().strip()
+
+			if not text:
+				continue
+
+			new_tag: Tag = self.html_parser.make_tag("p", text)
+			new_paragraphs: tuple[Paragraph, ...] = self.html_parser.parse_paragraphs(new_tag)
+			paragraphs.extend(new_paragraphs)
+
+		return tuple(paragraphs)

@@ -1,28 +1,14 @@
 {
-	"common": {
-		"archives_directory": "",
-		"images_directory": "",
-		"titles_directory": "",
-		"bad_image_stub": "",
-		"pretty": false,
-		"use_id_as_filename": false,
-		"sizing_images": false,
-		"retries": 1,
-		"delay": 1
-	},
 	"filters": {
-		"text_regexs": [],
-		"text_strings": [],
-		"image_md5": [],
-		"image_min_height": null,
-		"image_min_width": null,
-		"image_max_height": null,
-		"image_max_width": null
+		"images": {
+			"signatures": [
+				"v2.100.8cdd23668cd93366"
+			]
+		}
 	},
-	"proxies": [],
 	"custom": {
 		"token": "",
-		"unstub": false,
-		"add_free_publication_date": false
+		"add_free_publication_date": false,
+		"only_best_cover": false
 	}
 }
