@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
-## [1.2.0]
+## [1.2.0] - 2026-11-04
+
+### ✨ Added
+- Compatibility with `melon>=1.0.0-rc.7`.
 
 ### 🎨 Changed
+- Parent parser required version is upped to `remanga>=2.7`.
 - Use `HyperTextParser` for content processing.
-- Save only best cover.
-- Support `Slugger` extension from parent parser.
+- Save only best cover option.
+- Support **ID_Checker** and **Slugger** extension from parent parser.
 - Stubs reworked as images signatures.
 
 ### 🔥 Removed

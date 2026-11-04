@@ -73,7 +73,9 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 	def _parse(self):
 		"""Parse title data witchout chapters content."""
 
-		self.core.parse_main_data()
+		data: dict = self.core.parse_main_data()
+
+		self.__get_original_content_language(data)
 
 	@override
 	def _post_init(self):
@@ -101,17 +103,17 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 		#---> afterword
 		#==========================================================================================#
 		if "послесловие" in header:
-			return ChapterType.afterword
+			return ChapterType.Afterword
 
 		#---> art
 		#==========================================================================================#
 		if header.startswith("начальные") and "иллюстрации" in header:
-			return ChapterType.art
+			return ChapterType.Art
 
 		#---> epilogue
 		#==========================================================================================#
 		if "эпилог" in header:
-			return ChapterType.epilogue
+			return ChapterType.Epilogue
 
 		#---> extra
 		#==========================================================================================#
@@ -120,22 +122,22 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 			header.startswith("бонус") and "истори",
 			header.startswith("экстра"),
 		)):
-			return ChapterType.extra
+			return ChapterType.Extra
 
 		#---> glossary
 		#==========================================================================================#
 		if header.startswith("глоссарий"):
-			return ChapterType.glossary
+			return ChapterType.Glossary
 
 		#---> prologue
 		#==========================================================================================#
 		if "пролог" in header:
-			return ChapterType.prologue
+			return ChapterType.Prologue
 
 		#---> trash
 		#==========================================================================================#
-		if header.startswith("реквизиты") and "переводчик" in header: return ChapterType.trash
-		if header.startswith("примечани") and "переводчик" in header: return ChapterType.trash
+		if header.startswith("реквизиты") and "переводчик" in header: return ChapterType.Trash
+		if header.startswith("примечани") and "переводчик" in header: return ChapterType.Trash
 
 		#---> chapter
 		#==========================================================================================#
@@ -183,7 +185,7 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 					if header: elements.append(header)
 
 				case "p" | "pre":
-					elements.extend(self.html_parser.parse_paragraphs(section))
+					elements.extend(self.html_parser.parse_paragraphs(section, allow_footnotes = False))
 
 				case "img":
 					image = self.html_parser.parse_image(section)
@@ -197,6 +199,37 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 					elements.extend(self.__parse_table(section))
 
 		return tuple(elements)
+
+	def __get_original_content_language(self, data: dict):
+		"""
+		Get title original content language.
+
+		Args:
+			data (dict): Title data.
+		"""
+
+		type_data: dict | None = data.get("type")
+
+		if not type_data:
+			return
+
+		value: str | None = type_data.get("name")
+
+		if not value:
+			return
+
+		determinations: dict[str, str | None] = {
+			"Другое": None,
+			"Авторское": "rus",
+			"Япония": "jpn",
+			"Корея": "kor",
+			"Китай": "zho",
+			"Запад": "eng",
+			"Фанфики": None,
+		}
+
+		if value in determinations:
+			self.title.data.set_original_language(determinations[value])
 
 	def __parse_table(self, tag: "Tag") -> tuple["Paragraph", ...]:
 
@@ -217,7 +250,7 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 				continue
 
 			new_tag: Tag = self.html_parser.make_tag("p", text)
-			new_paragraphs: tuple[Paragraph, ...] = self.html_parser.parse_paragraphs(new_tag)
+			new_paragraphs: tuple[Paragraph, ...] = self.html_parser.parse_paragraphs(new_tag, allow_footnotes = False)
 			paragraphs.extend(new_paragraphs)
 
 		return tuple(paragraphs)

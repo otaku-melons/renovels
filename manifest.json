@@ -1,5 +1,6 @@
 {
 	"domain": "renovels.org",
 	"parent": "remanga",
+	"parent_version": ">=2.7",
 	"platform": ">=1.0.0rc7"
 }
