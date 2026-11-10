@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For visual categorization of changes emojis are used in accordance with [gitmoji](https://gitmoji.dev).
 
+## [1.3.0] - 2026-11-10
+
+### 🎨 Changed
+- Parser now distributes as Python package.
+
 ## [1.2.0] - 2026-11-04
 
 ### ✨ Added

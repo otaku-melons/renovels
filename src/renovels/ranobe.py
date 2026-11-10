@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, override
 
 from bs4 import BeautifulSoup
+from remanga.modules.core import ParserCore
 
 from melon.core.base.formats.base_format.branch import Branch
 from melon.core.base.formats.base_format.chapter import BaseChapter
@@ -9,18 +10,16 @@ from melon.core.base.formats.ranobe.enums import ChapterType
 from melon.core.base.parser.presets import BaseRanobeParser
 from melon.core.html.allowed_tags import ALLOWED_TAGS
 
-from ..remanga import extensions
-from ..remanga.modules.core import ParserCore
-
 if TYPE_CHECKING:
 	from bs4 import Tag
+	from remanga.modules.slugger import Slugger
+	from remanga.settings.custom import CustomSettingsModel  # noqa: F401
 
 	from melon.core.base.structs.image import ImageData
 	from melon.core.html.base_elements import BaseElement
 	from melon.core.html.elements import Paragraph
 	from melon.sdk.html_parser import HyperTextParser
 
-	from ..remanga.custom import CustomSettingsModel  # noqa: F401
 	from . import SourceOperator  # noqa: F401
 
 class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
@@ -45,8 +44,8 @@ class Parser(BaseRanobeParser["SourceOperator", "CustomSettingsModel"]):
 		return self.__is_paid_chapters_locked
 
 	@property
-	def slugger(self) -> extensions.Slugger | None:
-		"""Extension: title slug updater."""
+	def slugger(self) -> "Slugger":
+		"""Title slug updater."""
 
 		return self.__core.slugger
 

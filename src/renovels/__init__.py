@@ -1,8 +1,8 @@
 from typing import override
 
-from melon.core.base.parser.enums import ContentType
+from remanga import SourceOperator as ParentSourceOperator
 
-from ..remanga import SourceOperator as ParentSourceOperator
+from melon.core.base.parser.enums import ContentType
 
 class SourceOperator(ParentSourceOperator):
 	"""Source operator."""
